@@ -10,7 +10,8 @@ CAPTURE_DIR = ROOT / "captures"
 HAND_MODEL = MODEL_DIR / "hand_landmarker.task"
 SEGMENT_MODEL = MODEL_DIR / "selfie_segmenter.tflite"
 
-WINDOW_TITLE = "RETROLENS 2.0"
+WINDOW_TITLE = "Retrolens"
+THEME = "minimal"           # "minimal" or "cyberpunk" (press T in the app to switch)
 
 # --- palette -----------------------------------------------------------------
 CYAN = (255, 255, 0)
@@ -22,15 +23,6 @@ RED = (60, 60, 255)
 WHITE = (255, 255, 255)
 GREY = (150, 150, 150)
 DARK = (24, 12, 20)
-
-BRUSH_COLORS = [
-    ("CYAN", CYAN),
-    ("MAGENTA", MAGENTA),
-    ("YELLOW", YELLOW),
-    ("LIME", GREEN),
-    ("ORANGE", ORANGE),
-    ("WHITE", WHITE),
-]
 
 # --- tracking ----------------------------------------------------------------
 MAX_HANDS = 2

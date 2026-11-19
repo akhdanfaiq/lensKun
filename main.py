@@ -1,9 +1,20 @@
-"""Retrolens 2.0 - run with:  python main.py"""
+"""Retrolens 2.0 - run with:  python3 main.py"""
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
+from pathlib import Path
+
+# Re-launch with the project's .venv when started from another Python, so
+# `python3 main.py` works without activating the virtual environment first.
+_VENV = Path(__file__).resolve().parent / ".venv"
+_VENV_PY = _VENV / "bin" / "python"
+if (_VENV_PY.exists() and Path(sys.prefix).resolve() != _VENV.resolve()
+        and not os.environ.get("RETROLENS_REEXEC")):
+    os.environ["RETROLENS_REEXEC"] = "1"
+    os.execv(str(_VENV_PY), [str(_VENV_PY), str(Path(__file__).resolve()), *sys.argv[1:]])
 
 import cv2
 
@@ -70,28 +81,37 @@ def main() -> int:
     cv2.namedWindow(config.WINDOW_TITLE, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     start = time.monotonic()
     sized = False
+    frames, hidden, reason = 0, 0, "interrupted (Ctrl+C)"
     try:
         while True:
             frame = source.read()
             if frame is None:
-                print("[retrolens] no frame from the source, exiting", file=sys.stderr)
+                reason = "the camera stopped sending frames"
                 break
             out = app.process(frame, time.monotonic() - start)
             if not sized:
                 cv2.resizeWindow(config.WINDOW_TITLE, out.shape[1], out.shape[0])
                 sized = True
             cv2.imshow(config.WINDOW_TITLE, out)
-            key = cv2.waitKey(1) & 0xFF
-            if key != 255 and not app.handle_key(key):
+            frames += 1
+            key = cv2.waitKey(1)
+            if key >= 0 and not app.handle_key(key & 0xFF):
+                reason = f"quit key pressed (code {key & 0xFF})"
                 break
-            if cv2.getWindowProperty(config.WINDOW_TITLE, cv2.WND_PROP_VISIBLE) < 1:
-                break                                    # window closed with the mouse
+            # Window closed with the mouse. Some backends report 'not visible' for a few
+            # frames while the window is still appearing, so wait for it to persist.
+            visible = cv2.getWindowProperty(config.WINDOW_TITLE, cv2.WND_PROP_VISIBLE) >= 1
+            hidden = 0 if visible else hidden + 1
+            if hidden >= 15 and frames > 60:
+                reason = "window closed"
+                break
     except KeyboardInterrupt:
         pass
     finally:
         app.close()
         source.close()
         cv2.destroyAllWindows()
+    print(f"[retrolens] stopped after {frames} frames ({time.monotonic() - start:.1f}s): {reason}")
     return 0
 
 

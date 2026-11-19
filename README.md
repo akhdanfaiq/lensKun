@@ -18,7 +18,7 @@ as a modular project with smoother tracking, more effects and a cyberpunk HUD.
 - **Air drawing mode** — paint neon strokes with your index finger, erase with an open palm.
 - **Photo & video capture** — 3-second countdown with flash, MP4 recording, saved to `captures/`
   without the HUD or hand skeleton.
-- **Cyberpunk HUD** — neon hand skeleton, FPS, filter carousel, help panel.
+- **Themes** — a clean *Minimal* look by default, or a neon *Cyberpunk* look; press `T` to switch.
 
 ## Requirements
 
@@ -61,6 +61,7 @@ Options: `--camera 1` (other camera), `--width 1280 --height 720`, `--no-mirror`
 | --- | --- |
 | `N` / `P` | Next / previous filter or colour |
 | `D` or `Tab` | Switch between portal and draw mode |
+| `T` | Switch theme (Minimal / Cyberpunk) |
 | `Space` | Photo (3 s countdown) |
 | `R` | Start / stop video recording |
 | `C` | Clear the drawing |
@@ -81,11 +82,23 @@ retrolens/
   canvas.py           air drawing
   capture.py          photo countdown and video recording
   hud.py              on-screen interface
+  theme.py            visual themes (Minimal, Cyberpunk)
   fx.py               shared drawing helpers (glow, panels, text)
   app.py              ties everything together
 models/               hand_landmarker.task, selfie_segmenter.tflite
 captures/             saved photos and videos (created on first capture)
 ```
+
+### Themes
+
+| Theme | Look |
+| --- | --- |
+| `minimal` (default) | White and grey text on soft dark panels, thin portal outline, faint hand skeleton, muted brush colours |
+| `cyberpunk` | Neon cyan/magenta glow, sparks around the portal, corner brackets, neon brush strokes |
+
+To change the theme the app starts with, set `THEME` in `retrolens/config.py`. To make your own,
+add a `Theme(...)` to `THEMES` in `retrolens/theme.py` — colours, panel style, glow on/off and the
+brush palette are all defined there.
 
 ### Adding a filter
 

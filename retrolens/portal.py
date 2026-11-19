@@ -7,7 +7,7 @@ from typing import List, Optional
 import cv2
 import numpy as np
 
-from . import config, fx
+from . import config, fx, theme
 from . import tracking as tk
 from .filters import Filter, FilterContext
 from .tracking import Hand
@@ -92,6 +92,7 @@ class Portal:
         if not self.active or self._poly is None:
             return
 
+        th = theme.get()
         fh, fw = frame.shape[:2]
         centre = self._poly.mean(axis=0)
         grow = fx.ease_out((t - self._opened_at) / config.PORTAL_OPEN_TIME)
@@ -111,12 +112,22 @@ class Portal:
                     out = out.copy()
                 cut = int((x1 - x0) * fx.ease_out(transition))
                 out[:, cut:] = previous.apply(roi, ctx)[:, cut:]
-                out[:, max(0, cut - 2):cut + 2] = 255          # bright wipe line
+                lw = 2 if th.neon else 1
+                out[:, max(0, cut - lw):cut + lw] = th.accent           # wipe line
             mask = np.zeros((y1 - y0, x1 - x0), np.uint8)
             cv2.fillPoly(mask, [ipoly - np.array([x0, y0])], 255, cv2.LINE_AA)
             np.copyto(roi, out, where=(mask > 127)[..., None])
 
-        # --- sparks ---------------------------------------------------------------
+        # --- frame ---------------------------------------------------------------
+        if th.neon:
+            self._neon_frame(frame, poly, ipoly, centre, (x, y, bw, bh), t, dt, th)
+        else:
+            cv2.polylines(frame, [ipoly], True, th.accent, 2, cv2.LINE_AA)
+            for p in ipoly:
+                cv2.circle(frame, (int(p[0]), int(p[1])), 4, th.accent, -1, cv2.LINE_AA)
+
+    def _neon_frame(self, frame, poly, ipoly, centre, box, t, dt, th) -> None:
+        """Glowing pulsing edge with sparks and energy dots running round the rim."""
         nxt = np.roll(poly, -1, axis=0)
         n = max(1, int(round(260 * dt)))
         edge = self._rng.integers(0, 4, n)
@@ -127,30 +138,22 @@ class Portal:
         vel = outward * self._rng.uniform(25, 95, (n, 1)) + self._rng.normal(0, 30, (n, 2))
         self.particles.emit(pos.astype(np.float32), vel.astype(np.float32))
 
-        # --- glowing animated frame -------------------------------------------------
         pulse = 0.5 + 0.5 * math.sin(t * 2.2)
-        edge_colour = fx.lerp_color(config.CYAN, config.MAGENTA, pulse)
-        spark_colour = fx.lerp_color(config.MAGENTA, config.CYAN, pulse)
+        edge_colour = fx.lerp_color(th.accent, th.accent2, pulse)
+        spark_colour = fx.lerp_color(th.accent2, th.accent, pulse)
+        x, y, bw, bh = box
         pad = 70
 
         def draw(layer: np.ndarray, off: np.ndarray) -> None:
             local = np.round(poly - off).astype(np.int32)
             cv2.polylines(layer, [local], True, edge_colour, 3, cv2.LINE_AA)
-            self.particles.draw(layer, off, config.WHITE, spark_colour)
-            for i in range(6):                                   # energy pulses running round the rim
+            self.particles.draw(layer, off, th.text, spark_colour)
+            for i in range(6):
                 p = _perimeter_point(poly, t * 0.22 + i / 6.0) - off
-                cv2.circle(layer, (int(p[0]), int(p[1])), 4, config.WHITE, -1, cv2.LINE_AA)
+                cv2.circle(layer, (int(p[0]), int(p[1])), 4, th.text, -1, cv2.LINE_AA)
             for p in local:                                      # fingertip anchors
                 cv2.circle(layer, (int(p[0]), int(p[1])), 7, spark_colour, 2, cv2.LINE_AA)
-                cv2.circle(layer, (int(p[0]), int(p[1])), 3, config.WHITE, -1, cv2.LINE_AA)
+                cv2.circle(layer, (int(p[0]), int(p[1])), 3, th.text, -1, cv2.LINE_AA)
 
         fx.glow_region(frame, (x - pad, y - pad, x + bw + pad, y + bh + pad), draw, sigma=8, strength=1.3)
-        cv2.polylines(frame, [ipoly], True, config.WHITE, 1, cv2.LINE_AA)
-
-        # --- label ---------------------------------------------------------------------
-        label = f"PORTAL // {current.name}"
-        tw, th = fx.text_size(label, 0.55)
-        lx = int(min(max(8, ipoly[:, 0].min()), fw - tw - 16))
-        ly = int(max(th + 14, ipoly[:, 1].min() - 16))
-        fx.panel(frame, lx - 6, ly - th - 8, lx + tw + 8, ly + 8, border=edge_colour)
-        fx.text(frame, label, (lx, ly), 0.55, config.WHITE)
+        cv2.polylines(frame, [ipoly], True, th.text, 1, cv2.LINE_AA)

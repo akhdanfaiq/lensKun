@@ -1,12 +1,12 @@
 """Small drawing helpers shared by the portal, canvas and HUD."""
 from __future__ import annotations
 
-from typing import Callable, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
 
-FONT = cv2.FONT_HERSHEY_DUPLEX
+from . import theme
 
 
 def lerp_color(a: Sequence[int], b: Sequence[int], k: float) -> Tuple[int, int, int]:
@@ -44,26 +44,32 @@ def glow_region(frame: np.ndarray, box: Tuple[int, int, int, int],
 def text(img: np.ndarray, s: str, org: Tuple[int, int], scale: float = 0.6,
          color: Sequence[int] = (255, 255, 255), thick: int = 1, shadow: bool = True) -> None:
     org = (int(org[0]), int(org[1]))
+    font = theme.get().font
     if shadow:
-        cv2.putText(img, s, (org[0] + 2, org[1] + 2), FONT, scale, (0, 0, 0), thick, cv2.LINE_AA)
-    cv2.putText(img, s, org, FONT, scale, color, thick, cv2.LINE_AA)
+        cv2.putText(img, s, (org[0] + 2, org[1] + 2), font, scale, (0, 0, 0), thick, cv2.LINE_AA)
+    cv2.putText(img, s, org, font, scale, color, thick, cv2.LINE_AA)
 
 
 def text_size(s: str, scale: float = 0.6, thick: int = 1) -> Tuple[int, int]:
-    (w, h), _ = cv2.getTextSize(s, FONT, scale, thick)
+    (w, h), _ = cv2.getTextSize(s, theme.get().font, scale, thick)
     return w, h
 
 
 def panel(img: np.ndarray, x0: int, y0: int, x1: int, y1: int,
-          border: Sequence[int] = (255, 255, 0), opacity: float = 0.62) -> None:
-    """Dark translucent panel with a thin border and bright corner ticks."""
+          border: Optional[Sequence[int]] = None) -> None:
+    """Dark translucent panel. The theme decides whether it gets a border and corner ticks."""
+    th = theme.get()
     fh, fw = img.shape[:2]
     x0, y0, x1, y1 = max(0, int(x0)), max(0, int(y0)), min(fw, int(x1)), min(fh, int(y1))
     if x1 - x0 < 4 or y1 - y0 < 4:
         return
-    img[y0:y1, x0:x1] = cv2.convertScaleAbs(img[y0:y1, x0:x1], alpha=1.0 - opacity, beta=8)
+    img[y0:y1, x0:x1] = cv2.convertScaleAbs(img[y0:y1, x0:x1], alpha=1.0 - th.panel_opacity, beta=8)
+    if th.panel_border is None:
+        return
+    border = border or th.panel_border
     cv2.rectangle(img, (x0, y0), (x1 - 1, y1 - 1), scale_color(border, 0.45), 1, cv2.LINE_AA)
-    brackets(img, x0, y0, x1 - 1, y1 - 1, border, length=min(12, (x1 - x0) // 3, (y1 - y0) // 3), thick=2)
+    if th.brackets:
+        brackets(img, x0, y0, x1 - 1, y1 - 1, border, length=min(12, (x1 - x0) // 3, (y1 - y0) // 3), thick=2)
 
 
 def brackets(img: np.ndarray, x0: int, y0: int, x1: int, y1: int,

@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-from . import config, hud
+from . import config, hud, theme
 from . import gestures as gs
 from .canvas import AirCanvas
 from .capture import CaptureManager
@@ -53,12 +53,11 @@ class App:
         if self.mode == MODE_PORTAL:
             self.step_filter(delta)
         else:
-            for _ in range(delta % len(config.BRUSH_COLORS)):
-                self.canvas.next_color()
+            self.canvas.step_color(delta)
 
     def toggle_mode(self) -> None:
         self.mode = MODE_DRAW if self.mode == MODE_PORTAL else MODE_PORTAL
-        self.toast(f"{self.mode} MODE")
+        self.toast(f"{self.mode.capitalize()} mode")
 
     def take_photo(self) -> None:
         self.capture.start_countdown(self._t)
@@ -69,15 +68,15 @@ class App:
         was_recording = self.capture.recording
         path = self.capture.toggle_recording(self._clean, self._t)
         if path is None:
-            self.toast("RECORDING FAILED")
+            self.toast("Recording failed")
         elif was_recording:
-            self.toast(f"VIDEO SAVED: {path.name}")
+            self.toast(f"Video saved: {path.name}")
         else:
-            self.toast("RECORDING STARTED")
+            self.toast("Recording started")
 
     def clear_canvas(self) -> None:
         self.canvas.clear()
-        self.toast("CANVAS CLEARED")
+        self.toast("Drawing cleared")
 
     def handle_key(self, key: int) -> bool:
         """Returns False when the app should quit."""
@@ -95,6 +94,8 @@ class App:
             self.toggle_recording()
         elif key in (ord("c"), ord("C")):
             self.clear_canvas()
+        elif key in (ord("t"), ord("T")):
+            self.toast(f"Theme: {theme.cycle().name}")
         elif key in (ord("h"), ord("H")):
             self.show_help = not self.show_help
         return True
@@ -138,9 +139,9 @@ class App:
         self._clean = frame.copy() if saving else frame
         saved = self.capture.update(self._clean, t)
         if saved is not None:
-            self.toast(f"PHOTO SAVED: {saved.name}")
+            self.toast(f"Photo saved: {saved.name}")
         elif saving and not self.capture.recording and self.capture.countdown_left(t) is None:
-            self.toast("PHOTO FAILED")
+            self.toast("Photo failed")
 
         hud.draw_hands(frame, hands)
         if self.mode == MODE_DRAW:
@@ -149,8 +150,9 @@ class App:
         if self.mode == MODE_PORTAL:
             items, index, swatches = [f.name for f in self.filters], self.filter_index, None
         else:
-            items = [name for name, _ in config.BRUSH_COLORS]
-            index, swatches = self.canvas.color_index, [c for _, c in config.BRUSH_COLORS]
+            palette = self.canvas.palette
+            items = [name for name, _ in palette]
+            index, swatches = self.canvas.color_index % len(palette), [c for _, c in palette]
         hud.draw(frame, hud.HudState(
             mode=self.mode, fps=self.fps, hands=len(hands), items=items, index=index, swatches=swatches,
             recording=self.capture.recording, rec_elapsed=self.capture.record_elapsed(t),

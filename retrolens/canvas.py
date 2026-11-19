@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 import cv2
 import numpy as np
 
-from . import config, fx
+from . import fx, theme
 from . import gestures as gs
 from . import tracking as tk
 from .tracking import Hand
@@ -28,15 +28,19 @@ class AirCanvas:
         self.empty = True
 
     @property
+    def palette(self):
+        return theme.get().brush_colors
+
+    @property
     def color(self):
-        return config.BRUSH_COLORS[self.color_index][1]
+        return self.palette[self.color_index % len(self.palette)][1]
 
     @property
     def color_name(self) -> str:
-        return config.BRUSH_COLORS[self.color_index][0]
+        return self.palette[self.color_index % len(self.palette)][0]
 
-    def next_color(self) -> None:
-        self.color_index = (self.color_index + 1) % len(config.BRUSH_COLORS)
+    def step_color(self, delta: int = 1) -> None:
+        self.color_index = (self.color_index + delta) % len(self.palette)
 
     def clear(self) -> None:
         if self._ink is not None:
@@ -67,7 +71,7 @@ class AirCanvas:
                 # Coloured tube with a pale core, like a neon sign.
                 cv2.line(self._ink, start, p, self.color, BRUSH, cv2.LINE_AA)
                 cv2.line(self._mask, start, p, 255, BRUSH, cv2.LINE_AA)
-                cv2.line(self._core, start, p, fx.lerp_color(self.color, config.WHITE, 0.75), 3, cv2.LINE_AA)
+                cv2.line(self._core, start, p, fx.lerp_color(self.color, (255, 255, 255), 0.75), 3, cv2.LINE_AA)
                 cv2.line(self._core_mask, start, p, 255, 3, cv2.LINE_AA)
                 self._last[hand.key] = (tip.copy(), t)
                 self.empty = False
@@ -84,17 +88,22 @@ class AirCanvas:
     def render(self, frame: np.ndarray) -> None:
         if self._ink is None or self.empty:
             return
-        h, w = frame.shape[:2]
-        small = cv2.resize(self._ink, (w // GLOW_DOWNSCALE, h // GLOW_DOWNSCALE), interpolation=cv2.INTER_AREA)
-        halo = cv2.resize(cv2.GaussianBlur(small, (0, 0), 4), (w, h), interpolation=cv2.INTER_LINEAR)
-        cv2.addWeighted(frame, 1.0, halo, 1.6, 0, dst=frame)
+        neon = theme.get().neon
+        if neon:
+            h, w = frame.shape[:2]
+            small = cv2.resize(self._ink, (w // GLOW_DOWNSCALE, h // GLOW_DOWNSCALE), interpolation=cv2.INTER_AREA)
+            halo = cv2.resize(cv2.GaussianBlur(small, (0, 0), 4), (w, h), interpolation=cv2.INTER_LINEAR)
+            cv2.addWeighted(frame, 1.0, halo, 1.6, 0, dst=frame)
         cv2.copyTo(self._ink, self._mask, frame)
-        cv2.copyTo(self._core, self._core_mask, frame)
+        if neon:                                   # pale core = neon-tube look
+            cv2.copyTo(self._core, self._core_mask, frame)
 
     def draw_cursors(self, frame: np.ndarray) -> None:
         for kind, p, radius in self._cursors:
             if kind == "draw":
                 cv2.circle(frame, p, radius + 6, self.color, 2, cv2.LINE_AA)
             else:
-                cv2.circle(frame, p, radius, config.WHITE, 1, cv2.LINE_AA)
-                fx.text(frame, "ERASE", (p[0] - 26, p[1] + 5), 0.5, config.WHITE)
+                th = theme.get()
+                cv2.circle(frame, p, radius, th.text, 1, cv2.LINE_AA)
+                tw, _ = fx.text_size(theme.label("ERASE"), 0.5)
+                fx.text(frame, theme.label("ERASE"), (p[0] - tw // 2, p[1] + 5), 0.5, th.text)
